@@ -1,0 +1,20 @@
+.container{
+    width: 100%;
+    padding: $s16 $s24;
+    border-bottom: 1px solid $border-third;
+    font-weight: $medium;
+}
+
+.start{
+    font-size: $md;
+    background-color: $text-primary !important;
+    padding: $s8 $s12;
+    color : $background-primary
+}
+
+.i8n{
+    padding: $s8;
+    font-size: $md;
+    border: 1px solid $border-third !important;
+    color: $text-primary;
+}
