@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, useState } from 'react';
+import { type ChangeEvent, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 
 interface Props extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -32,7 +32,7 @@ export default function Input(props: Props) {
                     padding: `0 ${isPassword ? '40px 0 10px' : '10px'}`,
                     boxSizing: 'border-box',
                     borderRadius: '16px',
-                    color: '#B4B4B5',
+                    color: '#111',
                     border: '1px solid #E0E0E0',
                     background: 'none',
                     outline: 'none',

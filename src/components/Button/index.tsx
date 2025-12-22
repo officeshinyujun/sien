@@ -1,5 +1,4 @@
 
-import Image from "next/image";
 interface Props {
     width?: number;
     height?: number;
@@ -29,9 +28,9 @@ export default function Button({ width, height, onClick, className, children, le
                 gap: 12,
             }}
         >
-            {leftIcon && <Image width={24} height={24} src={leftIcon} alt="leftIcon" />}
+            {leftIcon && <img width={24} height={24} src={leftIcon} alt="leftIcon" />}
             {children}
-            {rightIcon && <Image width={24} height={24} src={rightIcon} alt="rightIcon" />}
+            {rightIcon && <img width={24} height={24} src={rightIcon} alt="rightIcon" />}
         </button>
     );
 }

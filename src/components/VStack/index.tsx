@@ -1,6 +1,18 @@
-import { forwardRef, Ref } from "react";
-import { Flex, FlexProps } from "../Flex";
+import { forwardRef } from "react";
+import type { ReactNode } from "react";
+import { Flex } from "../Flex/";
+import type { FlexProps } from "../Flex";
 
-export const VStack = forwardRef(function VStack(props: FlexProps, ref: Ref<any>) {
-    return <Flex ref={ref} direction="column" {...props} />;
+type VStackProps = Omit<FlexProps, 'direction'> & {
+    children: ReactNode;
+};
+
+export const VStack = forwardRef<HTMLDivElement, VStackProps>(({ children, ...props }, ref) => {
+    return (
+        <Flex ref={ref} direction="column" {...props}>
+            {children}
+        </Flex>
+    );
 });
+
+VStack.displayName = 'VStack';

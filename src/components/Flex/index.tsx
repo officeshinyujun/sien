@@ -1,5 +1,5 @@
-import { createElement, ElementType, forwardRef, Ref } from "react";
-import { BaseLayoutProps, LayoutSizeProps } from "@/components/general/Flex/layout";
+import { createElement, type ElementType, forwardRef, type Ref } from "react";
+import { type BaseLayoutProps, type LayoutSizeProps } from "./layout";
 import cn from "classnames";
 import s from './style.module.scss';
 
@@ -13,12 +13,12 @@ export interface FlexProps extends BaseLayoutProps, Partial<LayoutSizeProps> {
     onClick?: () => void;
 }
 
-export const Flex = forwardRef(function Flex(props: FlexProps, ref: Ref<any>) {
+export const Flex = forwardRef(function Flex(props: FlexProps, ref: Ref<HTMLDivElement>) {
     const {
         as, children, className, 
         direction, justify, align,
         wrap, gap, style,
-        fullHeight, fullWidth, fitContent,
+        fullHeight, fullWidth,
         ...rest
     } = props;
     
