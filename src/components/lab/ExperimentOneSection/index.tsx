@@ -1,174 +1,13 @@
-import { useRef, useState, useEffect } from "react"
-import { Canvas, useFrame } from "@react-three/fiber"
+import { useRef, useState } from "react"
+import { Canvas } from "@react-three/fiber"
 import { OrbitControls, Html } from "@react-three/drei"
 import { Physics, RapierRigidBody, RigidBody } from "@react-three/rapier"
 import { GrabProvider, useGrab } from "@/components/lab/GrabProvider"
-import * as THREE from "three"
-import { useExperimentStore } from "./useExperimentStore"
+import { useExperimentStore } from "../../../stores/useExperimentStore"
 import { Ruler } from "./Ruler"
-
-// --- Constants ---
-const HISTORY_LENGTH = 200; // 그래프 데이터 길이
-
-// --- Types ---
-interface ExtendedRapierRigidBody extends RapierRigidBody {
-  setAdditionalMass: (mass: number, wakeUp: boolean) => void;
-}
-
-// --- Components ---
-
-function VelocityArrow({ bodyRef, color }: { bodyRef: React.RefObject<RapierRigidBody | null>, color: string }) {
-  const arrowRef = useRef<THREE.Group>(null);
-
-  useFrame(() => {
-    if (bodyRef.current && arrowRef.current) {
-      const vel = bodyRef.current.linvel();
-      const velocity = new THREE.Vector3(vel.x, vel.y, vel.z);
-      const speed = velocity.length();
-
-      // 화살표 방향 설정
-      if (speed > 0.1) {
-        const dir = velocity.normalize();
-        const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-        arrowRef.current.quaternion.copy(quaternion);
-        
-        // 화살표 길이 = 속도에 비례
-        const scale = Math.min(speed * 0.5, 5); // 너무 길어지지 않게 제한
-        arrowRef.current.scale.set(1, scale, 1);
-        arrowRef.current.visible = true;
-      } else {
-        arrowRef.current.visible = false;
-      }
-      
-      // 위치 동기화 (구의 중심)
-      const pos = bodyRef.current.translation();
-      arrowRef.current.position.set(pos.x, pos.y, pos.z);
-    }
-  });
-
-  return (
-    <group ref={arrowRef}>
-      <mesh position={[0, 0.5, 0]}>
-        <cylinderGeometry args={[0.05, 0.05, 1, 8]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      <mesh position={[0, 1, 0]}>
-        <coneGeometry args={[0.1, 0.3, 8]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
-    </group>
-  );
-}
-
-interface SphereProps {
-  position: [number, number, number];
-  color: string;
-  mass: number;
-  restitution: number;
-  label: string;
-  onUpdate: (vel: THREE.Vector3) => void;
-  rBodyRef: React.RefObject<RapierRigidBody | null>;
-}
-
-function ExperimentSphere({ position, color, mass, restitution, label, onUpdate, rBodyRef }: SphereProps) {
-  
-  // Mass 업데이트
-  useEffect(() => {
-    if (rBodyRef.current) {
-      const body = rBodyRef.current as ExtendedRapierRigidBody;
-      if (typeof body.setAdditionalMass === 'function') {
-         body.setAdditionalMass(mass, true);
-      }
-    }
-  }, [mass]);
-
-  useFrame(() => {
-    if (rBodyRef.current) {
-      const v = rBodyRef.current.linvel();
-      onUpdate(new THREE.Vector3(v.x, v.y, v.z));
-    }
-  });
-
-  return (
-    <>
-      <RigidBody
-        ref={rBodyRef}
-        colliders="ball"
-        position={position}
-        restitution={restitution}
-        friction={0} // 마찰력 0 (운동량 보존 실험용)
-        linearDamping={0} // 공기 저항 0
-        angularDamping={0}
-      >
-        <mesh 
-          castShadow 
-        >
-          <sphereGeometry args={[1, 32, 32]} />
-          <meshStandardMaterial color={color} metalness={0.2} roughness={0.1} />
-        </mesh>
-        <Html position={[0, 1.5, 0]} center pointerEvents="none">
-          <div style={{ color: 'white', background: 'rgba(0,0,0,0.5)', padding: '2px 5px', borderRadius: '4px', fontSize: '12px' }}>
-            {label}<br/>
-            {mass}kg
-          </div>
-        </Html>
-      </RigidBody>
-      <VelocityArrow bodyRef={rBodyRef} color={color} />
-    </>
-  );
-}
-
-// --- Graph Component ---
-function DataGraph({ dataA, dataB }: { dataA: number[], dataB: number[] }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Clear
-    ctx.clearRect(0, 0, width, height);
-    
-    // Background Grid
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2); // Zero line
-    ctx.stroke();
-
-    const drawLine = (data: number[], color: string) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      const step = width / HISTORY_LENGTH;
-      
-      data.forEach((val, i) => {
-        // Scale: 1 unit speed = 20 pixels
-        const y = (height / 2) - (val * 20); 
-        if (i === 0) ctx.moveTo(0, y);
-        else ctx.lineTo(i * step, y);
-      });
-      ctx.stroke();
-    };
-
-    drawLine(dataA, '#ff5555'); // Red
-    drawLine(dataB, '#5555ff'); // Blue
-
-  }, [dataA, dataB]);
-
-  return (
-    <div style={{ background: 'rgba(0,0,0,0.8)', padding: '10px', borderRadius: '8px', marginTop: '10px' }}>
-      <div style={{ color: 'white', marginBottom: '5px', fontSize: '12px' }}>Speed vs Time</div>
-      <canvas ref={canvasRef} width={300} height={100} />
-    </div>
-  );
-}
+import { ExperimentSphere } from "./components/ExperimentSphere"
+import { DataGraph } from "./components/DataGraph"
+import { useExperimentLogic } from "@/utils/useExperimentLogic"
 
 // --- Main Scene ---
 
@@ -176,7 +15,7 @@ function Scene() {
   const { isDragging } = useGrab();
   const [isUIHovered, setIsUIHovered] = useState(false);
 
-  // Use Store
+  // Store
   const { 
     massA, setMassA, 
     massB, setMassB, 
@@ -184,67 +23,22 @@ function Scene() {
     launchForce, setLaunchForce,
     posA, setPosA,
     posB, setPosB,
-    resetKey, triggerReset
+    triggerReset,
+    focusedSphere, setFocusedSphere
   } = useExperimentStore();
   
-  // Real-time Data Refs
+  // Physics Refs
   const rbA = useRef<RapierRigidBody>(null);
   const rbB = useRef<RapierRigidBody>(null);
   
-  const [velA, setVelA] = useState(new THREE.Vector3());
-  const [velB, setVelB] = useState(new THREE.Vector3());
-  
-  // Graph Data
-  const [historyA, setHistoryA] = useState<number[]>(new Array(HISTORY_LENGTH).fill(0));
-  const [historyB, setHistoryB] = useState<number[]>(new Array(HISTORY_LENGTH).fill(0));
-
-  // Position updates (Setup Mode) - only when sliders change
-  useEffect(() => {
-    if (rbA.current) {
-        rbA.current.setTranslation({ x: posA, y: 0.5, z: 0 }, true);
-        rbA.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    }
-  }, [posA]);
-
-  useEffect(() => {
-    if (rbB.current) {
-        rbB.current.setTranslation({ x: posB, y: 0.5, z: 0 }, true);
-        rbB.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        rbB.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    }
-  }, [posB]);
-
-  // Reset / Launch Action
-  useEffect(() => {
-    if (resetKey === 0) return; // 초기 실행 방지 (원한다면)
-
-    if (rbA.current && rbB.current) {
-      // Launch A
-      rbA.current.setTranslation({ x: posA, y: 0.5, z: 0 }, true);
-      rbA.current.setLinvel({ x: launchForce, y: 0, z: 0 }, true); 
-      rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-
-      // Reset B
-      rbB.current.setTranslation({ x: posB, y: 0.5, z: 0 }, true);
-      rbB.current.setLinvel({ x: 0, y: 0, z: 0 }, true); 
-      rbB.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    }
-  }, [resetKey]); // posA, posB, launchForce are captured from store scope
-
-  // Data update loop
-  useEffect(() => {
-    const interval = setInterval(() => {
-        setHistoryA(prev => [...prev.slice(1), velA.length()]);
-        setHistoryB(prev => [...prev.slice(1), velB.length()]);
-    }, 50); // 20 FPS graph update
-    return () => clearInterval(interval);
-  }, [velA, velB]);
-
-  // Calculations
-  const momA = velA.clone().multiplyScalar(massA);
-  const momB = velB.clone().multiplyScalar(massB);
-  const totalMom = momA.clone().add(momB);
+  // Logic Hook
+  const { 
+    setVelA, setVelB, 
+    velA, velB, 
+    momA, momB, 
+    totalMom, 
+    historyA, historyB 
+  } = useExperimentLogic(rbA, rbB);
 
   return (
     <>
@@ -294,6 +88,7 @@ function Scene() {
           restitution={restitution}
           onUpdate={setVelA}
           rBodyRef={rbA}
+          onPointerDown={() => setFocusedSphere('A')}
         />
         
         <ExperimentSphere 
@@ -304,6 +99,7 @@ function Scene() {
           restitution={restitution}
           onUpdate={setVelB}
           rBodyRef={rbB}
+          onPointerDown={() => setFocusedSphere('B')}
         />
 
       </Physics>
@@ -383,7 +179,12 @@ function Scene() {
             </div>
 
             {/* Graph */}
-            <DataGraph dataA={historyA} dataB={historyB} />
+            <DataGraph 
+                dataA={historyA} 
+                dataB={historyB} 
+                focusedSphere={focusedSphere} 
+                onClearFocus={() => setFocusedSphere(null)}
+            />
 
         </div>
       </Html>

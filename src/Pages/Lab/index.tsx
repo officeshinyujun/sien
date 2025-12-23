@@ -6,6 +6,8 @@ export default function Lab() {
   return (
     <VStack className={s.container}>
       <h1>Lab Page</h1>
+      
+      <h2>Experiment 1: Collision & Momentum</h2>
       <ExperimentOneSection />
     </VStack>
   )
