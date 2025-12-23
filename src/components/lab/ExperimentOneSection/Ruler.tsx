@@ -1,5 +1,4 @@
 import { Text } from "@react-three/drei";
-import * as THREE from "three";
 
 export function Ruler({ length = 40, step = 1, zPos = 2 }: { length?: number, step?: number, zPos?: number }) {
   const ticks = [];

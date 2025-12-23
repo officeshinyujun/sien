@@ -29,7 +29,7 @@ interface ExperimentState {
 export const useExperimentStore = create<ExperimentState>((set) => ({
   massA: 1,
   massB: 1,
-  restitution: 0.3,
+  restitution: 0.8,
   friction: 0.5,
   launchForce: 5,
   launchAngle: 0,

@@ -18,7 +18,7 @@ interface SphereProps {
   rBodyRef: React.RefObject<RapierRigidBody | null>;
   onPointerDown?: () => void;
   enableGrab?: boolean;
-  userData?: Record<string, any>;
+  userData?: Record<string, unknown>;
   visible?: boolean;
   type?: 'solid' | 'stripe' | 'black' | 'cue';
 }
@@ -97,8 +97,8 @@ export function ExperimentSphere({ position, color, mass, restitution, friction,
         position={position}
         restitution={restitution}
         friction={friction} 
-        linearDamping={0.2} 
-        angularDamping={0.2}
+        linearDamping={0.3} 
+        angularDamping={0.3}
         userData={userData}
       >
         <mesh 

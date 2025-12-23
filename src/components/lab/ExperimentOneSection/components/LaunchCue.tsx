@@ -4,7 +4,7 @@ interface LaunchCueProps {
   angle: number; // in degrees
   force: number; // For visual pull-back
   visible?: boolean;
-  onPointerDown?: (e : any) => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
 }
 
 export function LaunchCue({ position, angle, force, visible = true, onPointerDown }: LaunchCueProps) {

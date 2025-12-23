@@ -1,7 +1,7 @@
 import { useRef, useMemo, useState, useEffect } from "react"
 import { Canvas } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei"
-import { Physics, RapierRigidBody, RigidBody } from "@react-three/rapier"
+import { Physics, RapierRigidBody, RigidBody, type CollisionPayload } from "@react-three/rapier"
 import { GrabProvider, useGrab } from "@/components/lab/GrabProvider"
 import { useExperimentStore } from "../../../stores/useExperimentStore"
 import { useGameScoreStore } from "../../../stores/useGameScoreStore"
@@ -12,7 +12,7 @@ import * as THREE from "three"
 import React from "react"
 
 // --- Helper: Generate Triangle Positions ---
-function getTrianglePositions(startX: number, spacing: number = 2.05): THREE.Vector3[] {
+function getTrianglePositions(startX: number): THREE.Vector3[] {
     const positions: THREE.Vector3[] = [];
     const rows = 5; 
     
@@ -111,39 +111,47 @@ function Scene() {
 
   // Reset visibility when resetKey changes
   useEffect(() => {
-    setActiveTargets(new Array(15).fill(true));
-    setActiveCue(true);
-    resetScore();
+    // Batch state updates together
+    const timer = setTimeout(() => {
+      setActiveTargets(new Array(15).fill(true));
+      setActiveCue(true);
+      resetScore();
+    }, 0);
+    
+    // Cleanup function to clear the timeout if component unmounts
+    return () => clearTimeout(timer);
   }, [resetKey, resetScore]);
 
-  const handlePocketEnter = (e: any) => {
+  const handlePocketEnter = (e: CollisionPayload) => {
     // Check collision with sensor
     const userData = e.other.rigidBodyObject?.userData;
     if (userData) {
-        if (userData.type === 'cue') {
-            // Respawn Cue Ball immediately
-            if (rbA.current) {
-                rbA.current.setTranslation({ x: posA, y: 0, z: 0 }, true);
-                rbA.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
-                rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-            }
-        } else if (userData.type === 'target') {
-            const index = userData.index;
-            setActiveTargets(prev => {
-                const next = [...prev];
-                // Only update if it wasn't already pocketed to avoid duplicate store entries (though store handles it too)
-                if (next[index]) {
-                   next[index] = false;
-                   const ballConfig = BALL_CONFIG[index];
-                   addPocketedBall({
-                       index: index,
-                       color: ballConfig.color,
-                       type: ballConfig.type
-                   });
+        setTimeout(() => {
+            if (userData.type === 'cue') {
+                // Respawn Cue Ball immediately
+                if (rbA.current) {
+                    rbA.current.setTranslation({ x: posA, y: 0, z: 0 }, true);
+                    rbA.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+                    rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
                 }
-                return next;
-            });
-        }
+            } else if (userData.type === 'target') {
+                const index = userData.index;
+                setActiveTargets(prev => {
+                    const next = [...prev];
+                    // Only update if it wasn't already pocketed to avoid duplicate store entries (though store handles it too)
+                    if (next[index]) {
+                    next[index] = false;
+                    const ballConfig = BALL_CONFIG[index];
+                    addPocketedBall({
+                        index: index,
+                        color: ballConfig.color,
+                        type: ballConfig.type
+                    });
+                    }
+                    return next;
+                });
+            }
+        }, 0);
     }
   };
   
@@ -192,7 +200,9 @@ function Scene() {
   const targetRefs = useMemo(() => Array.from({ length: 15 }).map(() => React.createRef<RapierRigidBody>()), []);
   
   // Logic Hook
-  const { setVelA, velA, currentPosA, isStopped } = useExperimentLogic(rbA, targetRefs, targetPositions);
+  const { 
+    // setVelA, velA, 
+    currentPosA, isStopped } = useExperimentLogic(rbA, targetRefs, targetPositions);
 
   return (
     <>
@@ -255,7 +265,7 @@ function Scene() {
                 angle={launchAngle} 
                 force={launchForce} // Always show current set force
                 visible={isStopped} 
-                onPointerDown={(e) => {
+                onPointerDown={(e: React.PointerEvent) => {
                     e.stopPropagation();
                     setIsAiming(true);
                 }}

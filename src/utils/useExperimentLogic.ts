@@ -43,8 +43,11 @@ export function useExperimentLogic(
         rbA.current.setTranslation({ x: posA, y: 0, z: 0 }, true);
         rbA.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
         rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-        setCurrentPosA(new THREE.Vector3(posA, 0, 0));
-        setIsStopped(true);
+        
+        setTimeout(() => {
+            setCurrentPosA(new THREE.Vector3(posA, 0, 0));
+            setIsStopped(true);
+        }, 0);
     }
   }, [posA]);
 
@@ -67,17 +70,12 @@ export function useExperimentLogic(
     if (resetKey === 0) return; 
 
     if (rbA.current) {
-        setHistoryA([]);
-        setHistoryTargets([]);
-
-        // Reset A
+        // Reset A Physics (Synchronous)
         rbA.current.setTranslation({ x: posA, y: 0, z: 0 }, true);
         rbA.current.setLinvel({ x: 0, y: 0, z: 0 }, true); 
         rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
-        setCurrentPosA(new THREE.Vector3(posA, 0, 0));
-        setIsStopped(true);
-
-        // Reset Targets
+        
+        // Reset Targets Physics (Synchronous)
         rbTargets.forEach((rb, i) => {
             if (rb.current && targetPositions[i]) {
                 rb.current.setTranslation(targetPositions[i], true);
@@ -85,6 +83,14 @@ export function useExperimentLogic(
                 rb.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
             }
         });
+
+        // Reset State (Asynchronous to avoid cascading render warning)
+        setTimeout(() => {
+            setHistoryA([]);
+            setHistoryTargets([]);
+            setCurrentPosA(new THREE.Vector3(posA, 0, 0));
+            setIsStopped(true);
+        }, 0);
     }
   }, [resetKey]); 
 
@@ -103,7 +109,9 @@ export function useExperimentLogic(
       rbA.current.setLinvel({ x: vx, y: 0, z: vz }, true);
       // rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true); // Optional: reset spin? Usually fine to keep or reset.
       
-      setIsStopped(false);
+      setTimeout(() => {
+          setIsStopped(false);
+      }, 0);
     }
   }, [launchKey]);
 
@@ -116,7 +124,7 @@ export function useExperimentLogic(
         // However, drag interactions might move it.
         
         let maxVel = 0;
-        let vA = new THREE.Vector3();
+        const vA = new THREE.Vector3();
 
         // Check A
         if (rbA.current) {
