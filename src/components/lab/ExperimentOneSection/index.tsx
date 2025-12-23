@@ -1,44 +1,104 @@
-import { useRef, useState } from "react"
+import { useRef, useMemo, useState } from "react"
 import { Canvas } from "@react-three/fiber"
-import { OrbitControls, Html } from "@react-three/drei"
+import { OrbitControls } from "@react-three/drei"
 import { Physics, RapierRigidBody, RigidBody } from "@react-three/rapier"
 import { GrabProvider, useGrab } from "@/components/lab/GrabProvider"
 import { useExperimentStore } from "../../../stores/useExperimentStore"
-import { Ruler } from "./Ruler"
 import { ExperimentSphere } from "./components/ExperimentSphere"
-import { DataGraph } from "./components/DataGraph"
+import { LaunchCue } from "./components/LaunchCue"
 import { useExperimentLogic } from "@/utils/useExperimentLogic"
+import * as THREE from "three"
+import React from "react"
+
+// --- Helper: Generate Triangle Positions ---
+function getTrianglePositions(startX: number, spacing: number = 2.05): THREE.Vector3[] {
+    const positions: THREE.Vector3[] = [];
+    const rows = 4; 
+    
+    const radius = 0.5;
+    const rowXSpacing = Math.sqrt(3) * radius * 1.01; 
+    const colZSpacing = 2 * radius * 1.01;
+
+    let index = 0;
+    for (let row = 0; row < rows; row++) {
+        const x = startX + row * rowXSpacing;
+        
+        for (let col = 0; col <= row; col++) {
+             const z = (col - row / 2) * colZSpacing;
+             positions.push(new THREE.Vector3(x, 0, z));
+             index++;
+             if (index >= 10) break;
+        }
+    }
+    return positions;
+}
 
 // --- Main Scene ---
 
 function Scene() {
   const { isDragging } = useGrab();
-  const [isUIHovered, setIsUIHovered] = useState(false);
-
+  const [isAiming, setIsAiming] = useState(false);
+  // Removed currentCharge state
+  
   // Store
   const { 
-    massA, setMassA, 
-    massB, setMassB, 
-    restitution, setRestitution, 
+    restitution, friction,
+    launchAngle, setLaunchAngle,
     launchForce, setLaunchForce,
-    posA, setPosA,
-    posB, setPosB,
-    triggerReset,
-    focusedSphere, setFocusedSphere
+    posA, posB,
+    setFocusedSphere,
+    triggerLaunch
   } = useExperimentStore();
+  
+  const cueBallMass = 0.02;
+  const targetBallMass = 0.02;
+  
+  // Interaction Handlers
+  React.useEffect(() => {
+    if (!isAiming) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+        // Sensitivity
+        setLaunchAngle(launchAngle - e.movementX * 0.5);
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+        // Scroll up (negative deltaY) -> Increase force
+        // Scroll down (positive deltaY) -> Decrease force
+        const delta = e.deltaY > 0 ? -1 : 1;
+        // Clamp force between 5 and 60
+        setLaunchForce(Math.min(60, Math.max(5, launchForce + delta)));
+    };
+
+    const handlePointerUp = () => {
+        setIsAiming(false);
+        // Launch on release with currently set force
+        triggerLaunch();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('wheel', handleWheel);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('wheel', handleWheel);
+        window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isAiming, launchAngle, launchForce, setLaunchAngle, setLaunchForce, triggerLaunch]);
+
+
+  // Calculate Target Positions
+  const targetPositions = useMemo(() => getTrianglePositions(posB), [posB]);
   
   // Physics Refs
   const rbA = useRef<RapierRigidBody>(null);
-  const rbB = useRef<RapierRigidBody>(null);
+  
+  // Create refs for 10 targets
+  const targetRefs = useMemo(() => Array.from({ length: 10 }).map(() => React.createRef<RapierRigidBody>()), []);
   
   // Logic Hook
-  const { 
-    setVelA, setVelB, 
-    velA, velB, 
-    momA, momB, 
-    totalMom, 
-    historyA, historyB 
-  } = useExperimentLogic(rbA, rbB);
+  const { setVelA, velA, currentPosA, isStopped } = useExperimentLogic(rbA, targetRefs, targetPositions);
 
   return (
     <>
@@ -48,7 +108,7 @@ function Scene() {
       <Physics gravity={[0, -9.81, 0]}>
         
         {/* Floor & Walls */}
-        <RigidBody type="fixed" friction={0} restitution={restitution} colliders="cuboid">
+        <RigidBody type="fixed" friction={friction} restitution={restitution} colliders="cuboid">
           {/* Floor */}
           <mesh receiveShadow position={[0, -1, 0]}>
             <boxGeometry args={[100, 1, 100]} />
@@ -76,132 +136,69 @@ function Scene() {
           </mesh>
         </RigidBody>
 
-        {/* Ruler */}
-        <Ruler length={32} zPos={2} />
+        {/* Launch Cue */}
+        {/* Position follows the ball A (currentPosA) */}
+        <LaunchCue 
+            position={[currentPosA.x, currentPosA.y, currentPosA.z]} 
+            angle={launchAngle} 
+            force={launchForce} // Always show current set force
+            visible={isStopped} 
+            onPointerDown={(e) => {
+                e.stopPropagation();
+                setIsAiming(true);
+            }}
+        />
 
-        {/* Spheres */}
+        {/* Cue Ball (A) */}
         <ExperimentSphere 
-          label="A"
-          position={[posA, 0.5, 0]} 
+          position={[posA, 0, 0]} 
           color="#ff5555" 
-          mass={massA} 
+          mass={cueBallMass} 
           restitution={restitution}
+          friction={friction}
           onUpdate={setVelA}
           rBodyRef={rbA}
           onPointerDown={() => setFocusedSphere('A')}
+          enableGrab={isStopped}
         />
         
-        <ExperimentSphere 
-          label="B"
-          position={[posB, 0.5, 0]} 
-          color="#5555ff" 
-          mass={massB} 
-          restitution={restitution}
-          onUpdate={setVelB}
-          rBodyRef={rbB}
-          onPointerDown={() => setFocusedSphere('B')}
-        />
+        {/* Target Balls (B Group) */}
+        {targetPositions.map((pos, i) => (
+             <ExperimentSphere 
+                key={i}
+                position={[pos.x, pos.y, pos.z]} 
+                color="#5555ff" 
+                mass={targetBallMass} 
+                restitution={restitution}
+                friction={friction}
+                rBodyRef={targetRefs[i]}
+                onPointerDown={() => setFocusedSphere('B')}
+                enableGrab={isStopped}
+            />
+        ))}
 
       </Physics>
 
-      <OrbitControls makeDefault enabled={!isDragging && !isUIHovered} />
-
-      {/* UI Overlay */}
-      <Html fullscreen style={{ pointerEvents: 'none' }}>
-        <div 
-            style={{ position: 'absolute', top: 20, left: 20, pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}
-            onPointerEnter={() => setIsUIHovered(true)}
-            onPointerLeave={() => setIsUIHovered(false)}
-        >
-            
-            {/* Controls */}
-            <div style={{ background: 'rgba(255,255,255,0.9)', padding: '15px', borderRadius: '8px', width: '300px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', borderBottom: '1px solid #ddd', paddingBottom: '5px' }}>Experiment Controls</h3>
-                
-                <div style={{ marginBottom: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#d32f2f' }}>Mass A: {massA}kg</label>
-                    <input type="range" min="0.1" max="10" step="0.1" value={massA} onChange={e => setMassA(parseFloat(e.target.value))} style={{ width: '100%' }} />
-                </div>
-                <div style={{ marginBottom: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#d32f2f' }}>Pos A: {posA}m</label>
-                    <input type="range" min="-14" max="-2" step="0.5" value={posA} onChange={e => setPosA(parseFloat(e.target.value))} style={{ width: '100%' }} />
-                </div>
-
-                <div style={{ marginBottom: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#303f9f' }}>Mass B: {massB}kg</label>
-                    <input type="range" min="0.1" max="10" step="0.1" value={massB} onChange={e => setMassB(parseFloat(e.target.value))} style={{ width: '100%' }} />
-                </div>
-                <div style={{ marginBottom: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#303f9f' }}>Pos B: {posB}m</label>
-                    <input type="range" min="2" max="14" step="0.5" value={posB} onChange={e => setPosB(parseFloat(e.target.value))} style={{ width: '100%' }} />
-                </div>
-
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>Restitution (Bounciness): {restitution}</label>
-                    <div style={{ fontSize: '10px', color: '#666' }}>1.0 = Elastic, 0.0 = Inelastic</div>
-                    <input type="range" min="0" max="1" step="0.1" value={restitution} onChange={e => setRestitution(parseFloat(e.target.value))} style={{ width: '100%' }} />
-                </div>
-
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>Launch Force: {launchForce} m/s</label>
-                    <input type="range" min="1" max="20" step="1" value={launchForce} onChange={e => setLaunchForce(parseFloat(e.target.value))} style={{ width: '100%' }} />
-                </div>
-
-                <button 
-                    onClick={triggerReset}
-                    style={{ width: '100%', padding: '8px', background: '#333', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                >
-                    Reset / Launch
-                </button>
-            </div>
-
-            {/* Stats Panel */}
-            <div style={{ background: 'rgba(0,0,0,0.8)', padding: '15px', borderRadius: '8px', width: '300px', color: 'white' }}>
-                 <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#aaa' }}>Real-time Data</h4>
-                 
-                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '5px', fontSize: '11px', marginBottom: '10px' }}>
-                    <div></div>
-                    <div style={{ color: '#ff5555', fontWeight: 'bold' }}>Sphere A</div>
-                    <div style={{ color: '#5555ff', fontWeight: 'bold' }}>Sphere B</div>
-
-                    <div>Velocity</div>
-                    <div>{velA.length().toFixed(2)} m/s</div>
-                    <div>{velB.length().toFixed(2)} m/s</div>
-
-                    <div>Momentum</div>
-                    <div>{momA.length().toFixed(2)}</div>
-                    <div>{momB.length().toFixed(2)}</div>
-                 </div>
-
-                 <div style={{ borderTop: '1px solid #555', paddingTop: '5px', fontSize: '12px' }}>
-                    <strong>Total Momentum: </strong> {totalMom.length().toFixed(2)} kg·m/s
-                 </div>
-            </div>
-
-            {/* Graph */}
-            <DataGraph 
-                dataA={historyA} 
-                dataB={historyB} 
-                focusedSphere={focusedSphere} 
-                onClearFocus={() => setFocusedSphere(null)}
-            />
-
-        </div>
-      </Html>
+      <OrbitControls makeDefault enabled={!isDragging && !isAiming} />
     </>
   )
 }
 
 export function ExperimentOneSection() {
   return (
-    <Canvas
-      style={{ width: "100%", height: "800px", background: "#111" }}
-      shadows
-      camera={{ position: [0, 15, 10], fov: 50 }}
-    >
-      <GrabProvider>
-        <Scene />
-      </GrabProvider>
-    </Canvas>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
+        <div style={{ position: 'relative', width: '100%', height: '600px', background: "#111", borderRadius: '8px', overflow: 'hidden' }}>
+            <Canvas
+                shadows
+                camera={{ position: [0, 15, 10], fov: 50 }}
+            >
+                <GrabProvider>
+                    <Scene />
+                </GrabProvider>
+            </Canvas>
+        </div>
+        
+        {/* <ExperimentControls /> */}
+    </div>
   )
 }
