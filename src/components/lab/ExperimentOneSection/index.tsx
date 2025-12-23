@@ -1,9 +1,10 @@
-import { useRef, useMemo, useState } from "react"
+import { useRef, useMemo, useState, useEffect } from "react"
 import { Canvas } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei"
 import { Physics, RapierRigidBody, RigidBody } from "@react-three/rapier"
 import { GrabProvider, useGrab } from "@/components/lab/GrabProvider"
 import { useExperimentStore } from "../../../stores/useExperimentStore"
+import { useGameScoreStore } from "../../../stores/useGameScoreStore"
 import { ExperimentSphere } from "./components/ExperimentSphere"
 import { LaunchCue } from "./components/LaunchCue"
 import { useExperimentLogic } from "@/utils/useExperimentLogic"
@@ -13,25 +14,73 @@ import React from "react"
 // --- Helper: Generate Triangle Positions ---
 function getTrianglePositions(startX: number, spacing: number = 2.05): THREE.Vector3[] {
     const positions: THREE.Vector3[] = [];
-    const rows = 4; 
+    const rows = 5; 
     
     const radius = 0.5;
     const rowXSpacing = Math.sqrt(3) * radius * 1.01; 
     const colZSpacing = 2 * radius * 1.01;
 
-    let index = 0;
     for (let row = 0; row < rows; row++) {
         const x = startX + row * rowXSpacing;
-        
         for (let col = 0; col <= row; col++) {
              const z = (col - row / 2) * colZSpacing;
              positions.push(new THREE.Vector3(x, 0, z));
-             index++;
-             if (index >= 10) break;
         }
     }
     return positions;
 }
+
+const POCKET_RADIUS = 0.75;
+const POCKET_POSITIONS = [
+  [-15.5, -9.5], // Top Left
+  [15.5, -9.5],  // Top Right
+  [-15.5, 9.5],  // Bottom Left
+  [15.5, 9.5],   // Bottom Right
+  [0, -9.5],     // Top Middle
+  [0, 9.5]       // Bottom Middle
+];
+
+// Standard Pool Colors
+const COLORS = {
+    YELLOW: '#FDD017',
+    BLUE: '#0000FF',
+    RED: '#FF0000',
+    PURPLE: '#800080',
+    ORANGE: '#FFA500',
+    GREEN: '#008000',
+    MAROON: '#800000',
+    BLACK: '#111111',
+};
+
+// Fixed Rack Configuration (Standard-ish)
+// 15 balls total. 
+// Row 1: 1 ball
+// Row 2: 2 balls
+// Row 3: 3 balls (Middle is 8-ball)
+// Row 4: 4 balls
+// Row 5: 5 balls
+const BALL_CONFIG: { color: string, type: 'solid' | 'stripe' | 'black' }[] = [
+    { color: COLORS.YELLOW, type: 'solid' }, // 1 (Tip)
+    
+    { color: COLORS.BLUE, type: 'solid' },   // 2
+    { color: COLORS.YELLOW, type: 'stripe' }, // 9
+    
+    { color: COLORS.RED, type: 'solid' },    // 3
+    { color: COLORS.BLACK, type: 'black' },  // 8 (Middle)
+    { color: COLORS.BLUE, type: 'stripe' },  // 10
+    
+    { color: COLORS.PURPLE, type: 'solid' }, // 4
+    { color: COLORS.RED, type: 'stripe' },   // 11
+    { color: COLORS.MAROON, type: 'solid' }, // 7
+    { color: COLORS.PURPLE, type: 'stripe' },// 12
+
+    { color: COLORS.ORANGE, type: 'solid' }, // 5
+    { color: COLORS.ORANGE, type: 'stripe' },// 13
+    { color: COLORS.GREEN, type: 'solid' },  // 6
+    { color: COLORS.GREEN, type: 'stripe' }, // 14
+    { color: COLORS.MAROON, type: 'stripe' },// 15
+];
+
 
 // --- Main Scene ---
 
@@ -47,11 +96,56 @@ function Scene() {
     launchForce, setLaunchForce,
     posA, posB,
     setFocusedSphere,
-    triggerLaunch
+    triggerLaunch,
+    resetKey
   } = useExperimentStore();
+
+  const { addPocketedBall, resetScore } = useGameScoreStore();
   
   const cueBallMass = 0.02;
   const targetBallMass = 0.02;
+
+  // Visibility State
+  const [activeTargets, setActiveTargets] = useState<boolean[]>(new Array(15).fill(true));
+  const [activeCue, setActiveCue] = useState(true);
+
+  // Reset visibility when resetKey changes
+  useEffect(() => {
+    setActiveTargets(new Array(15).fill(true));
+    setActiveCue(true);
+    resetScore();
+  }, [resetKey, resetScore]);
+
+  const handlePocketEnter = (e: any) => {
+    // Check collision with sensor
+    const userData = e.other.rigidBodyObject?.userData;
+    if (userData) {
+        if (userData.type === 'cue') {
+            // Respawn Cue Ball immediately
+            if (rbA.current) {
+                rbA.current.setTranslation({ x: posA, y: 0, z: 0 }, true);
+                rbA.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+                rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+            }
+        } else if (userData.type === 'target') {
+            const index = userData.index;
+            setActiveTargets(prev => {
+                const next = [...prev];
+                // Only update if it wasn't already pocketed to avoid duplicate store entries (though store handles it too)
+                if (next[index]) {
+                   next[index] = false;
+                   const ballConfig = BALL_CONFIG[index];
+                   addPocketedBall({
+                       index: index,
+                       color: ballConfig.color,
+                       type: ballConfig.type
+                   });
+                }
+                return next;
+            });
+        }
+    }
+  };
   
   // Interaction Handlers
   React.useEffect(() => {
@@ -94,8 +188,8 @@ function Scene() {
   // Physics Refs
   const rbA = useRef<RapierRigidBody>(null);
   
-  // Create refs for 10 targets
-  const targetRefs = useMemo(() => Array.from({ length: 10 }).map(() => React.createRef<RapierRigidBody>()), []);
+  // Create refs for 15 targets
+  const targetRefs = useMemo(() => Array.from({ length: 15 }).map(() => React.createRef<RapierRigidBody>()), []);
   
   // Logic Hook
   const { setVelA, velA, currentPosA, isStopped } = useExperimentLogic(rbA, targetRefs, targetPositions);
@@ -136,30 +230,51 @@ function Scene() {
           </mesh>
         </RigidBody>
 
+        {/* Pockets */}
+        {POCKET_POSITIONS.map((pos, i) => (
+            <RigidBody 
+                key={`pocket-${i}`} 
+                type="fixed" 
+                sensor 
+                position={[pos[0], -0.4, pos[1]]} // Slightly raised to intersect ball
+                onIntersectionEnter={handlePocketEnter}
+            >
+                <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                    <circleGeometry args={[POCKET_RADIUS, 32]} />
+                    <meshStandardMaterial color="red" transparent opacity={0.8} />
+                </mesh>
+            </RigidBody>
+        ))}
+
         {/* Launch Cue */}
         {/* Position follows the ball A (currentPosA) */}
-        <LaunchCue 
-            position={[currentPosA.x, currentPosA.y, currentPosA.z]} 
-            angle={launchAngle} 
-            force={launchForce} // Always show current set force
-            visible={isStopped} 
-            onPointerDown={(e) => {
-                e.stopPropagation();
-                setIsAiming(true);
-            }}
-        />
+        {/* Only show if activeCue is true (and stopped) */}
+        { activeCue && (
+            <LaunchCue 
+                position={[currentPosA.x, currentPosA.y, currentPosA.z]} 
+                angle={launchAngle} 
+                force={launchForce} // Always show current set force
+                visible={isStopped} 
+                onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setIsAiming(true);
+                }}
+            />
+        )}
 
         {/* Cue Ball (A) */}
         <ExperimentSphere 
           position={[posA, 0, 0]} 
-          color="#ff5555" 
+          color="#ffffff" 
           mass={cueBallMass} 
           restitution={restitution}
           friction={friction}
-          onUpdate={setVelA}
           rBodyRef={rbA}
           onPointerDown={() => setFocusedSphere('A')}
           enableGrab={isStopped}
+          userData={{ type: 'cue' }}
+          visible={activeCue}
+          type="cue"
         />
         
         {/* Target Balls (B Group) */}
@@ -167,13 +282,16 @@ function Scene() {
              <ExperimentSphere 
                 key={i}
                 position={[pos.x, pos.y, pos.z]} 
-                color="#5555ff" 
+                color={BALL_CONFIG[i]?.color || '#fff'} 
                 mass={targetBallMass} 
                 restitution={restitution}
                 friction={friction}
                 rBodyRef={targetRefs[i]}
                 onPointerDown={() => setFocusedSphere('B')}
                 enableGrab={isStopped}
+                userData={{ type: 'target', index: i }}
+                visible={activeTargets[i]}
+                type={BALL_CONFIG[i]?.type || 'solid'}
             />
         ))}
 

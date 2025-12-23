@@ -110,26 +110,19 @@ export function useExperimentLogic(
   // 4. Data Collection Loop & Stop Detection
   useEffect(() => {
     const interval = setInterval(() => {
+        // Performance Optimization: Check if we need to update at all
+        // If we are already stopped, and we have confirmed it, we might not need to keep setting state 
+        // unless we want to catch the exact moment it starts moving (handled by launchKey).
+        // However, drag interactions might move it.
+        
         let maxVel = 0;
+        let vA = new THREE.Vector3();
 
         // Check A
         if (rbA.current) {
             const v = rbA.current.linvel();
-            const vec = new THREE.Vector3(v.x, v.y, v.z);
-            setVelA(vec);
-            setHistoryA(prev => [...prev, vec.length()]);
-            maxVel = Math.max(maxVel, vec.length());
-
-             // Update tracked position for LaunchCue ONLY if moving (or just stopped)
-             // Optimization: only update state if significant change or just stopped
-             const pos = rbA.current.translation();
-             // We need to update currentPosA so LaunchCue follows the ball
-             // But doing this every 50ms might cause jittery UI if LaunchCue is rendered via React state.
-             // However, LaunchCue is only visible when stopped. 
-             // So we mainly need accurate final position when stopped.
-             if (vec.length() < 0.05) {
-                 setCurrentPosA(new THREE.Vector3(pos.x, pos.y, pos.z));
-             }
+            vA.set(v.x, v.y, v.z);
+            maxVel = Math.max(maxVel, vA.length());
         }
         
         // Check Targets
@@ -142,16 +135,37 @@ export function useExperimentLogic(
                 maxVel = Math.max(maxVel, speed);
             }
         });
-        setHistoryTargets(prev => [...prev, totalSpeedTargets]);
 
-        // Global Stop Detection
-        // If everything is moving very slowly, consider stopped.
         const stopped = maxVel < 0.1;
-        setIsStopped(stopped);
+
+        // Update States
+        // Only update velocity/history if moving or state changed
+        if (!stopped || !isStopped) {
+             setVelA(vA);
+             setHistoryA(prev => [...prev, vA.length()]);
+             setHistoryTargets(prev => [...prev, totalSpeedTargets]);
+             setIsStopped(stopped);
+        }
+
+        // Update Position only if it matters (stopped or nearly stopped) to update LaunchCue
+        if (rbA.current) {
+             const pos = rbA.current.translation();
+             if (vA.length() < 0.1) {
+                 // Throttle position updates or simple check difference?
+                 // React's setState won't re-render if value is identical (reference equality for objects is tricky though)
+                 // For Vector3, we should check distance.
+                 setCurrentPosA(prev => {
+                    if (Math.abs(prev.x - pos.x) > 0.01 || Math.abs(prev.z - pos.z) > 0.01) {
+                        return new THREE.Vector3(pos.x, pos.y, pos.z);
+                    }
+                    return prev;
+                 });
+             }
+        }
 
     }, 50); 
     return () => clearInterval(interval);
-  }, []); // Empty dependency to run once and use refs
+  }, [isStopped]); // Add isStopped dependency to correctly gate updates if needed, or keep empty and use functional updates. Empty is safer for interval.
 
   // 5. Physics Calculations (Derived)
   const momA = calculateMomentum(velA, massA);
