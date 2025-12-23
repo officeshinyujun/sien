@@ -1,0 +1,78 @@
+.container {
+    width: 100vw;
+    height: 100vh;
+    background-color: $background-secondary;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.formCard {
+    background-color: $background-third;
+    padding: $xxl;
+    border-radius: $s24;
+    border: 1px solid $border-primary;
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $s24;
+
+    h1 {
+        color: $text-primary;
+        font-size: $xl;
+        font-weight: $bold;
+        margin-bottom: $s8;
+    }
+}
+
+.input {
+    width: 100% !important;
+    padding: $s12 $s16;
+    border-radius: $s16;
+    border: 1px solid $border-primary !important;
+    background: $background-secondary !important;
+    color: $text-primary !important;
+    
+    &::placeholder {
+        color: $text-secondary !important;
+    }
+}
+
+.button {
+    width: 100%;
+    padding: $s12;
+    background: $brand-primary !important;
+    border-radius: $s16;
+    color: $text-primary;
+    font-weight: $semi-bold;
+    font-size: $md;
+    margin-top: $s8;
+    
+    &:hover {
+        opacity: 0.9;
+    }
+}
+
+.linkText {
+    color: $text-secondary;
+    font-size: $sm;
+    margin-top: $s16;
+    
+    a {
+        color: #0FA984;
+        text-decoration: none;
+        margin-left: $s4;
+        
+        &:hover {
+            text-decoration: underline;
+        }
+    }
+}
+
+.errorMessage {
+    color: #FF6B6B;
+    font-size: $sm;
+    margin-top: $s4;
+    align-self: flex-start;
+}
