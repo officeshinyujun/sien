@@ -1,29 +1,16 @@
-'use client'
 
-import { HStack } from "../HStack"
-import Logo from "../Logo"
-import s from "./style.module.scss"
-import Button from "../Button"
-import { useRouter } from "next/navigation";
+
+import { HStack } from '../HStack';
+import s from './style.module.scss';
 
 export default function Header() {
-    const router = useRouter();
-    return(
-        <HStack className={s.container} align="center" justify="between" direction="row">
-            <Logo scale = {24}/>
-            <HStack align="center" justify="center" direction="row" gap={12}>
-                <Button
-                    className={s.start}
-                    onClick={() => router.push('/signin')}
-                >
-                    Get started
-                </Button>
-                <Button
-                    className={s.i8n}
-                >
-                    EN
-                </Button>
+    return (
+        <HStack className={s.container} align="center" justify="between">
+            <HStack align="center" justify="center" gap={12}>
+                <div className={s.logo} />
+                <img src="/SIEN-Logo.png" alt="Logo" style={{ height: '24px' }} />
             </HStack>
+            <div className={s.profile}/>
         </HStack>
-    )
+    );
 }
