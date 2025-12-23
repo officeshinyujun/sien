@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import type { ReactNode } from "react";
-import { Flex } from "../Flex/";
+import { Flex } from "../Flex";
 import type { FlexProps } from "../Flex";
 
 type VStackProps = Omit<FlexProps, 'direction'> & {
