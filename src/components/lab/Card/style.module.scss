@@ -1,0 +1,27 @@
+.container{
+    width: 100%;
+    padding: 18px;
+    border: 1px solid $border-primary;
+    border-radius: $s16;
+    img{
+        border-radius: 999px;
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+    }
+    h1{
+        font-size: $md;
+        color: $text-primary;
+        font-weight: $medium;
+    }
+    p{
+        font-size: $md;
+        color: $text-primary;
+        font-weight: $regular;
+    }
+    h2{
+        font-size: $sm;
+        color: $text-secondary;
+        font-weight: $regular;
+    }
+}

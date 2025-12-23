@@ -5,7 +5,15 @@ import { HStack } from '@/components/general/HStack';
 import Button from '@/components/general/Button';
 import trophyImage from "@/assets/trophy.png"
 
-export default function Room({ name, playerCount, point, maxPlayers, description, image }: RoomProps) {
+import { useNavigate } from 'react-router-dom';
+
+export default function Room({ id, name, playerCount, point, maxPlayers, description, image }: RoomProps) {
+  const navigate = useNavigate();
+
+  const handleJoin = () => {
+    navigate(`/lab/${id}`);
+  };
+
   return (
     <VStack align="center" justify="end" className={s.container} style={{ backgroundImage: `url(${image})` }}>
       <VStack className={s.contents} fullWidth align="start" justify="start" gap={8}>
@@ -18,7 +26,7 @@ export default function Room({ name, playerCount, point, maxPlayers, description
             </HStack>
             <p>{playerCount}/{maxPlayers}</p>
         </HStack>
-        <Button className={s.joinButton}>참가하기</Button>
+        <Button className={s.joinButton} onClick={handleJoin}>참가하기</Button>
       </VStack>
     </VStack>
   );

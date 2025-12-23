@@ -314,70 +314,8 @@ function Scene() {
 }
 
 export function ExperimentOneSection() {
-  const { pocketedBalls, gameStatus } = useGameScoreStore();
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', height: '100%' }}>
-        <div style={{ position: 'relative', width: '100%', height: '600px', background: "#111", borderRadius: '8px', overflow: 'hidden' }}>
-            {/* Game Overlay */}
-            <div style={{ 
-                position: 'absolute', 
-                top: '20px', 
-                left: '20px', 
-                zIndex: 10, 
-                color: 'white', 
-                background: 'rgba(0,0,0,0.6)', 
-                padding: '15px', 
-                borderRadius: '8px',
-                pointerEvents: 'none',
-                fontFamily: 'sans-serif'
-            }}>
-                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '10px' }}>
-                    Status: <span style={{ color: gameStatus === 'finished' ? '#ff4444' : '#44ff44' }}>
-                        {gameStatus.toUpperCase()}
-                    </span>
-                </div>
-                <div style={{ fontSize: '1rem' }}>
-                    Pocketed: {pocketedBalls.length} / 15
-                </div>
-                <div style={{ display: 'flex', gap: '5px', marginTop: '10px', flexWrap: 'wrap', maxWidth: '200px' }}>
-                    {pocketedBalls.map((ball, i) => (
-                        <div 
-                            key={i} 
-                            style={{ 
-                                width: '15px', 
-                                height: '15px', 
-                                borderRadius: '50%', 
-                                background: ball.color,
-                                border: ball.type === 'stripe' ? '3px solid white' : 'none',
-                                boxSizing: 'border-box'
-                            }} 
-                        />
-                    ))}
-                </div>
-            </div>
-
-            {gameStatus === 'finished' && (
-                <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    zIndex: 20,
-                    color: 'white',
-                    background: 'rgba(255, 0, 0, 0.8)',
-                    padding: '20px 40px',
-                    borderRadius: '12px',
-                    fontSize: '2rem',
-                    fontWeight: 'bold',
-                    pointerEvents: 'none',
-                    textAlign: 'center'
-                }}>
-                    GAME OVER
-                    <div style={{ fontSize: '1rem', marginTop: '10px' }}>8-Ball Pocketed Early!</div>
-                </div>
-            )}
-
+        <div style={{ position: 'relative', width: '100%', height: '100%', background: "#111", overflow: 'hidden' }}>
             <Canvas
                 shadows
                 camera={{ position: [0, 15, 10], fov: 50 }}
@@ -387,8 +325,5 @@ export function ExperimentOneSection() {
                 </GrabProvider>
             </Canvas>
         </div>
-        
-        {/* <ExperimentControls /> */}
-    </div>
   )
 }
