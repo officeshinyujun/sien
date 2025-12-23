@@ -4,6 +4,7 @@ import Main from './pages/Main'
 import Lab from './pages/Lab'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import CreateRoom from './pages/CreateRoom'
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
       <Route path="/lab/:roomId" element={<Lab />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/create-room" element={<CreateRoom />} />
     </Routes>
   )
 }

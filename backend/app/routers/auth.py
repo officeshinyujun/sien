@@ -31,3 +31,18 @@ def login(user_credentials: schemas.UserCreate, db: Session = Depends(get_db)):
         data={"sub": user.nickname}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me", response_model=schemas.User)
+def read_users_me(db: Session = Depends(get_db), token: str = Depends(utils.oauth2_scheme)):
+    payload = utils.decode_access_token(token)
+    nickname: str = payload.get("sub")
+    if nickname is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = crud.get_user_by_nickname(db, nickname=nickname)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user

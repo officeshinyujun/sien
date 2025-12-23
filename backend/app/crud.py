@@ -17,3 +17,18 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.commit()
     db.refresh(db_user)
     return db_user
+
+def get_rooms(db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Room).offset(skip).limit(limit).all()
+
+def create_room(db: Session, room: schemas.RoomCreate, user_id: int):
+    db_room = models.Room(
+        **room.model_dump(), 
+        owner_id=user_id,
+        image="/testBackground.png", # Default image for now
+        player_count=0
+    )
+    db.add(db_room)
+    db.commit()
+    db.refresh(db_room)
+    return db_room

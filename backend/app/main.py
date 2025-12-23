@@ -1,15 +1,19 @@
 from fastapi import FastAPI
 from .database import engine, Base
-from .routers import auth
+from .routers import auth, rooms
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import os
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+os.makedirs(STATIC_DIR, exist_ok=True) # Ensure it exists
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Configure CORS
 origins = [
@@ -26,6 +30,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(rooms.router)
 
 @app.get("/")
 def read_root():

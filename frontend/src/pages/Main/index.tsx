@@ -5,9 +5,27 @@ import { HStack } from '@/components/general/HStack';
 import Input from '@/components/general/Input';
 import Button from '@/components/general/Button';
 import Room from '@/components/Main/Room';
-import { sampleRooms } from '@/constants/rooms';
+import { useEffect, useState } from 'react';
+import { roomsApi } from '@/api/rooms';
+import { type RoomProps } from '@/components/Main/Room/type';
+import { useNavigate } from 'react-router-dom';
 
 export default function Main() {
+  const [rooms, setRooms] = useState<RoomProps[]>([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const data = await roomsApi.getAll();
+        setRooms(data);
+      } catch (error) {
+        console.error("Failed to fetch rooms", error);
+      }
+    };
+    fetchRooms();
+  }, []);
+
   return (
     <VStack className={s.container} gap={16}>
       <Header/>
@@ -18,10 +36,15 @@ export default function Main() {
         </VStack>
         <HStack fullWidth align="center" justify="between">
           <Input placeholder="방 검색" className={s.searchInput} />
-          <Button className={s.createButton}>방 생성</Button>
+          <Button 
+            className={s.createButton}
+            onClick={() => navigate('/create-room')}
+          >
+            방 생성
+          </Button>
         </HStack>
         <div className={s.roomList}>
-          {sampleRooms.map(room => (
+          {rooms.map(room => (
             <Room key={room.id} {...room} />
           ))}
         </div>
