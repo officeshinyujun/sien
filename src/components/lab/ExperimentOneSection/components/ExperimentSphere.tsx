@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RapierRigidBody, RigidBody } from "@react-three/rapier";
-import { useGrab } from "@/components/lab/GrabProvider";
+// import { useGrab } from "@/components/lab/GrabProvider";
 import * as THREE from "three";
 
 interface ExtendedRapierRigidBody extends RapierRigidBody {
@@ -42,8 +42,10 @@ function createStripeTexture(color: string): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
-export function ExperimentSphere({ position, color, mass, restitution, friction, onUpdate, rBodyRef, onPointerDown, enableGrab = true, userData, visible = true, type = 'solid' }: SphereProps) {
-  const { grab } = useGrab();
+export function ExperimentSphere({ position, color, mass, restitution, friction, onUpdate, rBodyRef, 
+  // onPointerDown,
+   enableGrab = true, userData, visible = true, type = 'solid' }: SphereProps) {
+  // const { grab } = useGrab();
   
   // Mass 업데이트
   useEffect(() => {
@@ -110,8 +112,8 @@ export function ExperimentSphere({ position, color, mass, restitution, friction,
             if (e.target) {
               (e.target as HTMLElement).setPointerCapture(e.pointerId);
             }
-            grab(rBodyRef);
-            if(onPointerDown) onPointerDown();
+            // grab(rBodyRef);
+            // if(onPointerDown) onPointerDown();
           }}
         >
           <sphereGeometry args={[0.5, 32, 32]} />

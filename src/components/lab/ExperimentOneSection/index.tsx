@@ -10,6 +10,7 @@ import { LaunchCue } from "./components/LaunchCue"
 import { useExperimentLogic } from "@/utils/useExperimentLogic"
 import * as THREE from "three"
 import React from "react"
+// import { ExperimentControls } from "@/components/lab/ExperimentOneSection/components/ExperimentControls"
 
 // --- Helper: Generate Triangle Positions ---
 function getTrianglePositions(startX: number): THREE.Vector3[] {
@@ -215,28 +216,28 @@ function Scene() {
         <RigidBody type="fixed" friction={friction} restitution={restitution} colliders="cuboid">
           {/* Floor */}
           <mesh receiveShadow position={[0, -1, 0]}>
-            <boxGeometry args={[100, 1, 100]} />
-            <meshStandardMaterial color="#333" />
+            <boxGeometry args={[33, 1, 21]} />
+            <meshStandardMaterial color="#3a66f8" />
           </mesh>
           
           {/* Side Walls */}
           <mesh position={[0, 0.5, -10]} receiveShadow>
              <boxGeometry args={[32, 2, 1]} />
-             <meshStandardMaterial color="#444" />
+             <meshStandardMaterial color="#333" />
           </mesh>
            <mesh position={[0, 0.5, 10]} receiveShadow>
              <boxGeometry args={[32, 2, 1]} />
-             <meshStandardMaterial color="#444" />
+             <meshStandardMaterial color="#333" />
           </mesh>
 
           {/* End Walls */}
           <mesh position={[-16, 0.5, 0]} receiveShadow>
              <boxGeometry args={[1, 2, 21]} />
-             <meshStandardMaterial color="#444" />
+             <meshStandardMaterial color="#333" />
           </mesh>
           <mesh position={[16, 0.5, 0]} receiveShadow>
              <boxGeometry args={[1, 2, 21]} />
-             <meshStandardMaterial color="#444" />
+             <meshStandardMaterial color="#333" />
           </mesh>
         </RigidBody>
 
@@ -251,7 +252,7 @@ function Scene() {
             >
                 <mesh rotation={[-Math.PI / 2, 0, 0]}>
                     <circleGeometry args={[POCKET_RADIUS, 32]} />
-                    <meshStandardMaterial color="red" transparent opacity={0.8} />
+                    <meshStandardMaterial color="#284fcc" transparent opacity={0.8} />
                 </mesh>
             </RigidBody>
         ))}
@@ -305,7 +306,7 @@ function Scene() {
             />
         ))}
 
-      </Physics>
+      </Physics>  
 
       <OrbitControls makeDefault enabled={!isDragging && !isAiming} />
     </>
@@ -313,9 +314,70 @@ function Scene() {
 }
 
 export function ExperimentOneSection() {
+  const { pocketedBalls, gameStatus } = useGameScoreStore();
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', height: '100%' }}>
         <div style={{ position: 'relative', width: '100%', height: '600px', background: "#111", borderRadius: '8px', overflow: 'hidden' }}>
+            {/* Game Overlay */}
+            <div style={{ 
+                position: 'absolute', 
+                top: '20px', 
+                left: '20px', 
+                zIndex: 10, 
+                color: 'white', 
+                background: 'rgba(0,0,0,0.6)', 
+                padding: '15px', 
+                borderRadius: '8px',
+                pointerEvents: 'none',
+                fontFamily: 'sans-serif'
+            }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '10px' }}>
+                    Status: <span style={{ color: gameStatus === 'finished' ? '#ff4444' : '#44ff44' }}>
+                        {gameStatus.toUpperCase()}
+                    </span>
+                </div>
+                <div style={{ fontSize: '1rem' }}>
+                    Pocketed: {pocketedBalls.length} / 15
+                </div>
+                <div style={{ display: 'flex', gap: '5px', marginTop: '10px', flexWrap: 'wrap', maxWidth: '200px' }}>
+                    {pocketedBalls.map((ball, i) => (
+                        <div 
+                            key={i} 
+                            style={{ 
+                                width: '15px', 
+                                height: '15px', 
+                                borderRadius: '50%', 
+                                background: ball.color,
+                                border: ball.type === 'stripe' ? '3px solid white' : 'none',
+                                boxSizing: 'border-box'
+                            }} 
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {gameStatus === 'finished' && (
+                <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 20,
+                    color: 'white',
+                    background: 'rgba(255, 0, 0, 0.8)',
+                    padding: '20px 40px',
+                    borderRadius: '12px',
+                    fontSize: '2rem',
+                    fontWeight: 'bold',
+                    pointerEvents: 'none',
+                    textAlign: 'center'
+                }}>
+                    GAME OVER
+                    <div style={{ fontSize: '1rem', marginTop: '10px' }}>8-Ball Pocketed Early!</div>
+                </div>
+            )}
+
             <Canvas
                 shadows
                 camera={{ position: [0, 15, 10], fov: 50 }}
