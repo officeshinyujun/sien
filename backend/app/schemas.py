@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 class UserBase(BaseModel):
     nickname: str
@@ -37,6 +38,33 @@ class Room(RoomBase):
     image: str
     player_count: int
     owner_id: int
+
+    class Config:
+        from_attributes = True
+
+class ShotCreate(BaseModel):
+    ball_positions: list[dict]
+    type: str = "STOP"
+
+class Shot(ShotCreate):
+    id: int
+    session_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class GameSessionBase(BaseModel):
+    room_id: int
+
+class GameSessionCreate(GameSessionBase):
+    pass
+
+class GameSession(GameSessionBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    is_active: int
 
     class Config:
         from_attributes = True

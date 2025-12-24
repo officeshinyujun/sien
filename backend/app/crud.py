@@ -32,3 +32,44 @@ def create_room(db: Session, room: schemas.RoomCreate, user_id: int):
     db.commit()
     db.refresh(db_room)
     return db_room
+
+def create_session(db: Session, session: schemas.GameSessionCreate, user_id: int):
+    db_session = models.GameSession(
+        room_id=session.room_id,
+        user_id=user_id,
+        is_active=1
+    )
+    db.add(db_session)
+    db.commit()
+    db.refresh(db_session)
+    return db_session
+
+def create_shot(db: Session, shot: schemas.ShotCreate, session_id: int):
+    db_shot = models.Shot(
+        session_id=session_id,
+        ball_positions=shot.ball_positions,
+        type=shot.type
+    )
+    db.add(db_shot)
+    db.commit()
+    db.refresh(db_shot)
+    return db_shot
+
+def get_active_users_in_room(db: Session, room_id: int):
+    return db.query(models.User).join(models.GameSession).filter(
+        models.GameSession.room_id == room_id,
+        models.GameSession.is_active == 1
+    ).all()
+
+def end_session(db: Session, session_id: int):
+    db_session = db.query(models.GameSession).filter(models.GameSession.id == session_id).first()
+    if db_session:
+        db_session.is_active = 0
+        db.commit()
+        db.refresh(db_session)
+    return db_session
+
+def get_latest_shot_in_room(db: Session, room_id: int):
+    return db.query(models.Shot).join(models.GameSession).filter(
+        models.GameSession.room_id == room_id
+    ).order_by(models.Shot.created_at.desc()).first()

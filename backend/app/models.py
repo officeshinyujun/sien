@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, JSON, DateTime
+from sqlalchemy.orm import relationship
 from .database import Base
+from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
@@ -26,3 +28,25 @@ class Room(Base):
     
     # Relationship with User (Creator)
     owner_id = Column(Integer, index=True, nullable=False)
+
+class GameSession(Base):
+    __tablename__ = "game_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Integer, default=1) # 1: active, 0: finished
+
+    shots = relationship("Shot", back_populates="session")
+
+class Shot(Base):
+    __tablename__ = "shots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("game_sessions.id"))
+    ball_positions = Column(JSON) # Stores list of ball states
+    type = Column(String, default="STOP") # LAUNCH, STOP
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("GameSession", back_populates="shots")

@@ -10,7 +10,7 @@ import { LaunchCue } from "./components/LaunchCue"
 import { useExperimentLogic } from "@/utils/useExperimentLogic"
 import * as THREE from "three"
 import React from "react"
-// import { ExperimentControls } from "@/components/lab/ExperimentOneSection/components/ExperimentControls"
+import { sessionsApi } from "@/api/sessions"
 
 // --- Helper: Generate Triangle Positions ---
 function getTrianglePositions(startX: number): THREE.Vector3[] {
@@ -83,23 +83,195 @@ const BALL_CONFIG: { color: string, type: 'solid' | 'stripe' | 'black' }[] = [
 ];
 
 
+import { useAuthStore } from "@/stores/useAuthStore";
+import { roomsApi } from "@/api/rooms";
+
 // --- Main Scene ---
 
-function Scene() {
+function Scene({ sessionIdRef, roomId }: { sessionIdRef?: React.MutableRefObject<number | null>, roomId?: string }) {
   const { isDragging } = useGrab();
   const [isAiming, setIsAiming] = useState(false);
-  // Removed currentCharge state
+  const { user } = useAuthStore();
   
   // Store
-  const { 
+  const {
     restitution, friction,
     launchAngle, setLaunchAngle,
     launchForce, setLaunchForce,
     posA, posB,
     setFocusedSphere,
     triggerLaunch,
-    resetKey
+    resetKey,
+    balls, // Get current balls state
+    gameState,
+    setGameState
   } = useExperimentStore();
+
+  // Logic Hook
+  const rbA = useRef<RapierRigidBody>(null);
+  // Create refs for 15 targets
+  const targetRefs = useMemo(() => Array.from({ length: 15 }).map(() => React.createRef<RapierRigidBody>()), []);
+  // Calculate Target Positions
+  const targetPositions = useMemo(() => getTrianglePositions(posB), [posB]);
+
+  // Logic Hook - moved up before it's used
+  const { currentPosA, syncBalls, isStopped } = useExperimentLogic(rbA, targetRefs, targetPositions);
+
+  // --- Polling Sync Logic ---
+  const lastShotIdRef = useRef<number | null>(null);
+  
+  // Use refs for values needed inside interval to avoid re-creating interval often
+  const gameStateRef = useRef(gameState);
+  const syncBallsRef = useRef(syncBalls);
+  
+  useEffect(() => {
+      gameStateRef.current = gameState;
+      syncBallsRef.current = syncBalls;
+  }, [gameState, syncBalls]);
+
+  useEffect(() => {
+    if (!roomId || !user) return;
+
+    const fetchLatestShot = async () => {
+        try {
+            // Only poll if we are waiting (idle)
+            if (gameStateRef.current !== 'WAIT') return;
+
+            const shot = await roomsApi.getLatestShot(roomId);
+            if (shot && shot.id !== lastShotIdRef.current) {
+                // Check if it's a STOP shot
+                if (shot.type === 'STOP') {
+                    // Assuming getLatestShot returns user_id? Currently API response might NOT have user_id inside shot object directly unless backend includes it.
+                    // The Shot schema has session_id, need to check if user_id is available or we need to rely on session ownership.
+                    // Actually, the previous WS message had senderId. The REST API getLatestShot returns 'Shot' schema.
+                    // Let's check backend schema. backend/app/schemas.py: Shot model has ball_positions, type, id, session_id.
+                    // It does NOT have user_id directly. We need to fetch session to know user_id OR update backend to include user_id in Shot response.
+                    // FOR NOW: Let's assume we sync everything that is newer. 
+                    // To prevent overwriting my own just-saved shot:
+                    // When I save, I update lastShotIdRef. So if I get back the same ID, I ignore it.
+                    // So checking ID difference is enough!
+                    
+                    console.log("[Polling] Syncing new shot:", shot.id);
+                    syncBallsRef.current(shot.ball_positions);
+                    lastShotIdRef.current = shot.id;
+                }
+            }
+        } catch (e) {
+            // silent fail
+        }
+    };
+
+    fetchLatestShot(); // Initial fetch
+    const intervalId = setInterval(fetchLatestShot, 2000); // Poll every 2s
+
+    return () => clearInterval(intervalId);
+  }, [roomId, user]); // Minimal dependencies
+
+  // --- Force Stop Timeout ---
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    if (gameState === 'MOVING') {
+        timeoutId = setTimeout(() => {
+            console.log("Force stopping after 10s timeout...");
+            
+            // Force Stop Physics
+            if (rbA.current) {
+                rbA.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+                rbA.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+            }
+            targetRefs.forEach(rb => {
+                if (rb.current) {
+                    rb.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+                    rb.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+                }
+            });
+
+            // Transition to STOPPED (will trigger save)
+            setGameState('STOPPED');
+        }, 10000); // 10 seconds
+    }
+
+    return () => {
+        if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [gameState, setGameState, targetRefs]);
+
+  // --- Save Shot Logic ---
+  // 1. Save LAUNCH state when we start moving
+  useEffect(() => {
+    if (gameState === 'MOVING') {
+         if (sessionIdRef && sessionIdRef.current) {
+             // Read current positions directly from Refs
+             const currentBalls: any[] = [];
+             if (rbA.current) {
+                 const t = rbA.current.translation();
+                 const r = rbA.current.rotation();
+                 const euler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
+                 currentBalls.push({ id: 0, position: {x: t.x, y: t.y, z: t.z}, rotation: {x: euler.x, y: euler.y, z: euler.z} });
+             }
+             targetRefs.forEach((rb, i) => {
+                 if (rb.current) {
+                     const t = rb.current.translation();
+                     const r = rb.current.rotation();
+                     const euler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
+                     currentBalls.push({ id: i + 1, position: {x: t.x, y: t.y, z: t.z}, rotation: {x: euler.x, y: euler.y, z: euler.z} });
+                 }
+             });
+
+             console.log("Saving Launch State...", currentBalls);
+             sessionsApi.saveShot(sessionIdRef.current, currentBalls, 'LAUNCH').catch(console.error);
+         }
+    }
+  }, [gameState, sessionIdRef, targetRefs]); // Removed balls dependency
+
+  // 2. Save STOP state when we stop
+  useEffect(() => {
+    if (gameState === 'STOPPED') {
+        if (sessionIdRef && sessionIdRef.current) {
+            // Read current positions directly from Refs
+             const currentBalls: any[] = [];
+             
+             // Check Cue Ball
+             if (rbA.current) {
+                 const t = rbA.current.translation();
+                 const r = rbA.current.rotation();
+                 const euler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
+                 currentBalls.push({ id: 0, position: {x: t.x, y: t.y, z: t.z}, rotation: {x: euler.x, y: euler.y, z: euler.z} });
+             } else {
+                 console.warn("Cue ball ref is missing during save!");
+             }
+
+             // Check Target Balls
+             console.log("Checking target refs count:", targetRefs.length);
+             targetRefs.forEach((rb, i) => {
+                 if (rb.current) {
+                     const t = rb.current.translation();
+                     const r = rb.current.rotation();
+                     const euler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w));
+                     currentBalls.push({ id: i + 1, position: {x: t.x, y: t.y, z: t.z}, rotation: {x: euler.x, y: euler.y, z: euler.z} });
+                 } else {
+                     // This log will help identify why targets are missing
+                     console.warn(`Target ball ref ${i+1} is null during save`);
+                 }
+             });
+
+            console.log("Saving Stop State (Final Positions):", JSON.stringify(currentBalls, null, 2));
+            console.log(`Total balls captured: ${currentBalls.length}`);
+            
+            sessionsApi.saveShot(sessionIdRef.current, currentBalls, 'STOP').then((savedShot) => {
+                console.log("Shot saved successfully", savedShot.id);
+                lastShotIdRef.current = savedShot.id; 
+                setGameState('WAIT');
+            }).catch(e => {
+                console.error("Failed to save shot", e);
+                setGameState('WAIT');
+            });
+        } else {
+            setGameState('WAIT');
+        }
+    }
+  }, [gameState, sessionIdRef, setGameState, targetRefs]);
 
   const { addPocketedBall, resetScore } = useGameScoreStore();
   
@@ -191,20 +363,6 @@ function Scene() {
   }, [isAiming, launchAngle, launchForce, setLaunchAngle, setLaunchForce, triggerLaunch]);
 
 
-  // Calculate Target Positions
-  const targetPositions = useMemo(() => getTrianglePositions(posB), [posB]);
-  
-  // Physics Refs
-  const rbA = useRef<RapierRigidBody>(null);
-  
-  // Create refs for 15 targets
-  const targetRefs = useMemo(() => Array.from({ length: 15 }).map(() => React.createRef<RapierRigidBody>()), []);
-  
-  // Logic Hook
-  const { 
-    // setVelA, velA, 
-    currentPosA, isStopped } = useExperimentLogic(rbA, targetRefs, targetPositions);
-
   return (
     <>
       <ambientLight intensity={0.5} />
@@ -265,7 +423,7 @@ function Scene() {
                 position={[currentPosA.x, currentPosA.y, currentPosA.z]} 
                 angle={launchAngle} 
                 force={launchForce} // Always show current set force
-                visible={isStopped} 
+                visible={gameState === 'WAIT'} 
                 onPointerDown={(e: React.PointerEvent) => {
                     e.stopPropagation();
                     setIsAiming(true);
@@ -274,37 +432,53 @@ function Scene() {
         )}
 
         {/* Cue Ball (A) */}
-        <ExperimentSphere 
-          position={[posA, 0, 0]} 
-          color="#ffffff" 
-          mass={cueBallMass} 
-          restitution={restitution}
-          friction={friction}
-          rBodyRef={rbA}
-          onPointerDown={() => setFocusedSphere('A')}
-          enableGrab={isStopped}
-          userData={{ type: 'cue' }}
-          visible={activeCue}
-          type="cue"
-        />
+        {(() => {
+            const cueState = balls.find(b => b.id === 0);
+            const cuePos: [number, number, number] = cueState 
+                ? [cueState.position.x, cueState.position.y, cueState.position.z] 
+                : [posA, 0, 0];
+            
+            return (
+                <ExperimentSphere 
+                  position={cuePos} 
+                  color="#ffffff" 
+                  mass={cueBallMass} 
+                  restitution={restitution}
+                  friction={friction}
+                  rBodyRef={rbA}
+                  onPointerDown={() => setFocusedSphere('A')}
+                  enableGrab={gameState === 'WAIT'}
+                  userData={{ type: 'cue' }}
+                  visible={activeCue}
+                  type="cue"
+                />
+            );
+        })()}
         
         {/* Target Balls (B Group) */}
-        {targetPositions.map((pos, i) => (
-             <ExperimentSphere 
-                key={i}
-                position={[pos.x, pos.y, pos.z]} 
-                color={BALL_CONFIG[i]?.color || '#fff'} 
-                mass={targetBallMass} 
-                restitution={restitution}
-                friction={friction}
-                rBodyRef={targetRefs[i]}
-                onPointerDown={() => setFocusedSphere('B')}
-                enableGrab={isStopped}
-                userData={{ type: 'target', index: i }}
-                visible={activeTargets[i]}
-                type={BALL_CONFIG[i]?.type || 'solid'}
-            />
-        ))}
+        {targetPositions.map((pos, i) => {
+             const ballState = balls.find(b => b.id === i + 1);
+             const currentPos: [number, number, number] = ballState 
+                ? [ballState.position.x, ballState.position.y, ballState.position.z] 
+                : [pos.x, pos.y, pos.z];
+
+             return (
+                 <ExperimentSphere 
+                    key={i}
+                    position={currentPos} 
+                    color={BALL_CONFIG[i]?.color || '#fff'} 
+                    mass={targetBallMass} 
+                    restitution={restitution}
+                    friction={friction}
+                    rBodyRef={targetRefs[i]}
+                    onPointerDown={() => setFocusedSphere('B')}
+                    enableGrab={gameState === 'WAIT'}
+                    userData={{ type: 'target', index: i }}
+                    visible={activeTargets[i]}
+                    type={BALL_CONFIG[i]?.type || 'solid'}
+                />
+             );
+        })}
 
       </Physics>  
 
@@ -313,7 +487,7 @@ function Scene() {
   )
 }
 
-export function ExperimentOneSection() {
+export function ExperimentOneSection({ sessionIdRef, roomId }: { sessionIdRef?: React.MutableRefObject<number | null>, roomId?: string }) {
   return (
         <div style={{ position: 'relative', width: '100%', height: '100%', background: "#111", overflow: 'hidden' }}>
             <Canvas
@@ -321,7 +495,7 @@ export function ExperimentOneSection() {
                 camera={{ position: [0, 15, 10], fov: 50 }}
             >
                 <GrabProvider>
-                    <Scene />
+                    <Scene sessionIdRef={sessionIdRef} roomId={roomId} />
                 </GrabProvider>
             </Canvas>
         </div>

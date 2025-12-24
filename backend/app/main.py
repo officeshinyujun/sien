@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from .database import engine, Base
-from .routers import auth, rooms
+from .routers import auth, rooms, sessions
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi import WebSocket, WebSocketDisconnect
+from .websocket import manager
 import os
 
 Base.metadata.create_all(bind=engine)
@@ -31,6 +33,16 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(rooms.router)
+app.include_router(sessions.router)
+
+@app.websocket("/ws/{room_id}/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, room_id: int, user_id: int):
+    await manager.connect(websocket, room_id, user_id)
+    try:
+        while True:
+            await websocket.receive_text() # Keep connection alive, listen for ping/pong if needed
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, room_id, user_id)
 
 @app.get("/")
 def read_root():
